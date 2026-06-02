@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mockup Exporter</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="./" aria-label="Mockup Exporter">
+        <span class="brand-mark" aria-hidden="true">[ ]</span>
+        <span>Mockup</span>
+      </a>
+      <nav class="nav-links" aria-label="Primary navigation">
+        <a href="#editor">Videos</a>
+        <a href="#settings">Devices</a>
+        <a href="#export">Export</a>
+      </nav>
+      <div class="top-actions">
+        <a href="#export">Create</a>
+      </div>
+    </header>
+
+    <main class="workspace" id="editor">
+      <section class="preview-pane" aria-label="Mockup preview">
+        <div class="preview-shell">
+          <canvas id="previewCanvas" width="1080" height="1080"></canvas>
+        </div>
+        <div class="status-row" aria-live="polite">
+          <span id="videoMeta">No video selected</span>
+          <span id="exportStatus">Ready</span>
+        </div>
+      </section>
+
+      <aside class="settings-panel" id="settings">
+        <form id="mockupForm">
+          <section class="panel-card">
+            <h1>Mockup Settings</h1>
+          </section>
+
+          <fieldset>
+            <legend>Source</legend>
+            <label class="field">
+              <span>Video file*</span>
+              <input id="videoInput" type="file" accept="video/*" />
+            </label>
+            <label class="field">
+              <span>Video fit</span>
+              <select id="fitMode">
+                <option value="cover">Fill screen</option>
+                <option value="contain">Fit inside</option>
+              </select>
+            </label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Device</legend>
+            <label class="field">
+              <span>Frame</span>
+              <select id="deviceSelect">
+                <option value="iphone16">Apple iPhone 16 Plus</option>
+                <option value="pixel9">Google Pixel 9 Pro</option>
+                <option value="ipad">Apple iPad Pro</option>
+                <option value="macbook">MacBook Pro 14</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Model</span>
+              <select id="modelSelect">
+                <option value="black">Black</option>
+                <option value="silver">Silver</option>
+                <option value="desert">Desert</option>
+              </select>
+            </label>
+            <div class="field">
+              <span>Orientation</span>
+              <div class="segmented" role="radiogroup" aria-label="Orientation">
+                <input id="portrait" type="radio" name="orientation" value="portrait" checked />
+                <label for="portrait">Portrait</label>
+                <input id="landscape" type="radio" name="orientation" value="landscape" />
+                <label for="landscape">Landscape</label>
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Background</legend>
+            <label class="field color-field">
+              <span>Color</span>
+              <span class="color-control">
+                <input id="backgroundColor" type="color" value="#768768" />
+                <input id="backgroundHex" type="text" value="#768768" inputmode="text" maxlength="7" />
+              </span>
+            </label>
+            <label class="field">
+              <span>Image</span>
+              <input id="backgroundImage" type="file" accept="image/*" />
+            </label>
+          </fieldset>
+
+          <fieldset id="export">
+            <legend>Export</legend>
+            <label class="field">
+              <span>Format</span>
+              <select id="exportPreset">
+                <option value="instagramPost">Instagram Post · 1080 x 1080</option>
+                <option value="instagramStory">Story/Reel · 1080 x 1920</option>
+                <option value="landscape">Landscape · 1920 x 1080</option>
+                <option value="portrait">Portrait · 1080 x 1350</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Resolution</span>
+              <select id="resolutionScale">
+                <option value="1">1x</option>
+                <option value="2">2x</option>
+              </select>
+            </label>
+            <label class="toggle-row">
+              <span>Watermark</span>
+              <input id="watermarkToggle" type="checkbox" checked />
+            </label>
+          </fieldset>
+
+          <div class="export-box">
+            <button id="exportButton" class="primary-button" type="submit">Create Video</button>
+            <progress id="exportProgress" max="1" value="0"></progress>
+            <a id="downloadLink" class="download-link" href="#" download="mockup-export.webm" hidden>Download export</a>
+          </div>
+        </form>
+      </aside>
+    </main>
+
+    <video id="sourceVideo" muted playsinline loop hidden></video>
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>
