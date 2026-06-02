@@ -1,0 +1,10 @@
+{
+  "name": "mockup-exporter",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "start:4174": "PORT=4174 node server.js"
+  }
+}

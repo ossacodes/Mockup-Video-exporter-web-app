@@ -211,6 +211,20 @@ legend {
   line-height: 1.1;
 }
 
+.range-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.range-head output {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 input[type="file"],
 input[type="text"],
 select {
@@ -255,6 +269,46 @@ input[type="color"] {
   border: 1px solid var(--line);
   border-radius: 7px;
   background: var(--surface);
+}
+
+input[type="range"] {
+  width: 100%;
+  height: 28px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  width: 20px;
+  height: 20px;
+  margin-top: -6px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 1px 5px rgba(20, 20, 18, 0.24);
+  appearance: none;
+}
+
+input[type="range"]::-moz-range-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 1px 5px rgba(20, 20, 18, 0.24);
 }
 
 .segmented {
@@ -372,6 +426,14 @@ progress {
   background: var(--surface-soft);
 }
 
+progress.is-loading {
+  background:
+    linear-gradient(90deg, rgba(182, 95, 56, 0.18), rgba(182, 95, 56, 0.78), rgba(182, 95, 56, 0.18)),
+    var(--surface-soft);
+  background-size: 220% 100%;
+  animation: progress-slide 900ms linear infinite;
+}
+
 progress::-webkit-progress-bar {
   background: var(--surface-soft);
 }
@@ -380,8 +442,30 @@ progress::-webkit-progress-value {
   background: var(--warm);
 }
 
+progress.is-loading::-webkit-progress-bar {
+  background: transparent;
+}
+
+progress.is-loading::-webkit-progress-value {
+  background: transparent;
+}
+
 progress::-moz-progress-bar {
   background: var(--warm);
+}
+
+progress.is-loading::-moz-progress-bar {
+  background: transparent;
+}
+
+@keyframes progress-slide {
+  from {
+    background-position: 120% 0;
+  }
+
+  to {
+    background-position: -120% 0;
+  }
 }
 
 .download-link {

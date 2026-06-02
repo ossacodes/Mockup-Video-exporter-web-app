@@ -10,6 +10,12 @@ const els = {
   exportButton: document.querySelector("#exportButton"),
   deviceSelect: document.querySelector("#deviceSelect"),
   modelSelect: document.querySelector("#modelSelect"),
+  mockupSize: document.querySelector("#mockupSize"),
+  mockupSizeValue: document.querySelector("#mockupSizeValue"),
+  reflectionStrength: document.querySelector("#reflectionStrength"),
+  reflectionValue: document.querySelector("#reflectionValue"),
+  bezelSize: document.querySelector("#bezelSize"),
+  bezelSizeValue: document.querySelector("#bezelSizeValue"),
   fitMode: document.querySelector("#fitMode"),
   backgroundColor: document.querySelector("#backgroundColor"),
   backgroundHex: document.querySelector("#backgroundHex"),
@@ -84,7 +90,9 @@ const frameColors = {
 };
 
 const state = {
+  videoFile: null,
   videoUrl: null,
+  backgroundFile: null,
   backgroundUrl: null,
   backgroundImage: null,
   drawing: false,
@@ -103,8 +111,16 @@ function getOptions() {
     fitMode: els.fitMode.value,
     backgroundColor: normalizeHex(els.backgroundHex.value) || els.backgroundColor.value,
     backgroundImage: state.backgroundImage,
+    bezelScale: readPercent(els.bezelSize, 100) / 100,
+    mockupScale: readPercent(els.mockupSize, 100) / 100,
+    reflectionStrength: readPercent(els.reflectionStrength, 100) / 100,
     watermark: els.watermarkToggle.checked,
   };
+}
+
+function readPercent(input, fallback) {
+  const value = Number(input?.value);
+  return Number.isFinite(value) ? value : fallback;
 }
 
 function normalizeHex(value) {
@@ -154,6 +170,58 @@ function drawScene(ctx, canvas, video, options) {
   ctx.restore();
 }
 
+function drawFrameOverlay(ctx, canvas, options) {
+  ctx.save();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const layout = getDeviceLayout(canvas.width, canvas.height, options);
+  let screen;
+
+  if (options.device.kind === "laptop") {
+    const geometry = getLaptopGeometry(layout, options);
+    drawLaptop(ctx, layout, null, options);
+    clearScreenHole(ctx, geometry.screen, geometry.screenRadius);
+    drawScreenGlass(ctx, geometry.screen, layout.width * 0.01, options.reflectionStrength);
+    drawLaptopNotch(ctx, layout);
+    screen = geometry.screen;
+  } else {
+    const geometry = getMobileGeometry(layout, options);
+    drawMobileDevice(ctx, layout, null, options);
+    clearScreenHole(ctx, geometry.screen, geometry.screenRadius);
+    drawScreenGlass(ctx, geometry.screen, geometry.screenRadius, options.reflectionStrength);
+
+    if (options.device.camera === "island") {
+      drawDynamicIsland(ctx, geometry.screen, geometry.isLandscape);
+    } else if (options.device.camera === "hole") {
+      drawCameraHole(ctx, geometry.screen, geometry.isLandscape);
+    } else {
+      drawTabletCamera(ctx, layout, geometry.isLandscape);
+    }
+    screen = geometry.screen;
+  }
+
+  if (options.watermark) {
+    drawWatermark(ctx, canvas);
+  }
+
+  ctx.restore();
+  return {
+    x: Math.round(screen.x),
+    y: Math.round(screen.y),
+    width: Math.round(screen.width),
+    height: Math.round(screen.height),
+  };
+}
+
+function clearScreenHole(ctx, screen, radius) {
+  ctx.save();
+  ctx.globalCompositeOperation = "destination-out";
+  roundedRect(ctx, screen.x, screen.y, screen.width, screen.height, radius);
+  ctx.fillStyle = "#000";
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawBackground(ctx, canvas, options) {
   ctx.fillStyle = options.backgroundColor;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -190,6 +258,10 @@ function getDeviceLayout(width, height, options) {
     maxHeight = height * (isLandscape ? 0.46 : 0.78);
   }
 
+  const mockupScale = options.mockupScale ?? 1;
+  maxWidth *= mockupScale;
+  maxHeight *= mockupScale;
+
   const scale = Math.min(maxWidth / naturalWidth, maxHeight / naturalHeight);
   const frameWidth = naturalWidth * scale;
   const frameHeight = naturalHeight * scale;
@@ -198,12 +270,12 @@ function getDeviceLayout(width, height, options) {
   return { x, y, width: frameWidth, height: frameHeight, scale };
 }
 
-function drawMobileDevice(ctx, layout, video, options) {
-  const colors = frameColors[options.model] || frameColors.black;
+function getMobileGeometry(layout, options) {
   const isTablet = options.device.kind === "tablet";
   const isLandscape = options.orientation === "landscape";
+  const bezelScale = options.bezelScale ?? 1;
   const radius = isTablet ? layout.width * 0.075 : layout.width * (isLandscape ? 0.075 : 0.155);
-  const inset = isTablet ? layout.width * 0.045 : layout.width * 0.045;
+  const inset = (isTablet ? layout.width * 0.045 : layout.width * 0.045) * bezelScale;
   const screen = {
     x: layout.x + inset,
     y: layout.y + inset * (isLandscape ? 1 : 1.12),
@@ -211,6 +283,26 @@ function drawMobileDevice(ctx, layout, video, options) {
     height: layout.height - inset * (isLandscape ? 2 : 2.18),
   };
   const screenRadius = isTablet ? screen.width * 0.045 : screen.width * (isLandscape ? 0.055 : 0.12);
+  return { inset, isLandscape, isTablet, radius, screen, screenRadius };
+}
+
+function getLaptopGeometry(layout, options = {}) {
+  const bezelScale = options.bezelScale ?? 1;
+  const screenFrameHeight = layout.height * 0.76;
+  const screenRadius = layout.width * 0.028;
+  const bezel = layout.width * 0.028 * bezelScale;
+  const screen = {
+    x: layout.x + bezel,
+    y: layout.y + bezel,
+    width: layout.width - bezel * 2,
+    height: screenFrameHeight - bezel * 1.85,
+  };
+  return { bezel, screen, screenFrameHeight, screenRadius };
+}
+
+function drawMobileDevice(ctx, layout, video, options) {
+  const colors = frameColors[options.model] || frameColors.black;
+  const { inset, isLandscape, isTablet, radius, screen, screenRadius } = getMobileGeometry(layout, options);
 
   drawDeviceButtons(ctx, layout, colors, isLandscape);
   ctx.save();
@@ -236,7 +328,7 @@ function drawMobileDevice(ctx, layout, video, options) {
   ctx.fill();
 
   drawVideoInside(ctx, screen, screenRadius, video, options.fitMode);
-  drawScreenGlass(ctx, screen, screenRadius);
+  drawScreenGlass(ctx, screen, screenRadius, options.reflectionStrength);
 
   if (options.device.camera === "island") {
     drawDynamicIsland(ctx, screen, isLandscape);
@@ -271,15 +363,7 @@ function drawDeviceButtons(ctx, layout, colors, isLandscape) {
 
 function drawLaptop(ctx, layout, video, options) {
   const colors = frameColors[options.model] || frameColors.black;
-  const screenFrameHeight = layout.height * 0.76;
-  const screenRadius = layout.width * 0.028;
-  const bezel = layout.width * 0.028;
-  const screen = {
-    x: layout.x + bezel,
-    y: layout.y + bezel,
-    width: layout.width - bezel * 2,
-    height: screenFrameHeight - bezel * 1.85,
-  };
+  const { bezel, screen, screenFrameHeight, screenRadius } = getLaptopGeometry(layout, options);
 
   ctx.save();
   ctx.shadowColor = "rgba(0, 0, 0, 0.22)";
@@ -295,7 +379,7 @@ function drawLaptop(ctx, layout, video, options) {
   ctx.fill();
 
   drawVideoInside(ctx, screen, layout.width * 0.01, video, options.fitMode);
-  drawScreenGlass(ctx, screen, layout.width * 0.01);
+  drawScreenGlass(ctx, screen, layout.width * 0.01, options.reflectionStrength);
 
   drawLaptopNotch(ctx, layout);
   drawLaptopBase(ctx, layout, colors, screenFrameHeight);
@@ -380,13 +464,16 @@ function drawPlaceholder(ctx, rect) {
   ctx.fill();
 }
 
-function drawScreenGlass(ctx, rect, radius) {
+function drawScreenGlass(ctx, rect, radius, strength = 1) {
+  const intensity = Math.max(0, Math.min(1.4, strength));
+  if (intensity <= 0) return;
+
   ctx.save();
   roundedRect(ctx, rect.x, rect.y, rect.width, rect.height, radius);
   ctx.clip();
   const shine = ctx.createLinearGradient(rect.x, rect.y, rect.x + rect.width * 0.82, rect.y + rect.height * 0.45);
-  shine.addColorStop(0, "rgba(255, 255, 255, 0.18)");
-  shine.addColorStop(0.34, "rgba(255, 255, 255, 0.03)");
+  shine.addColorStop(0, `rgba(255, 255, 255, ${0.18 * intensity})`);
+  shine.addColorStop(0.34, `rgba(255, 255, 255, ${0.03 * intensity})`);
   shine.addColorStop(1, "rgba(255, 255, 255, 0)");
   ctx.fillStyle = shine;
   ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
@@ -500,6 +587,30 @@ function setStatus(message) {
   els.exportStatus.textContent = message;
 }
 
+function updateRangeLabels() {
+  els.mockupSizeValue.textContent = `${readPercent(els.mockupSize, 100)}%`;
+  els.reflectionValue.textContent = `${readPercent(els.reflectionStrength, 100)}%`;
+  els.bezelSizeValue.textContent = `${readPercent(els.bezelSize, 100)}%`;
+}
+
+function setProgressLoading(isLoading) {
+  els.exportProgress.classList.toggle("is-loading", isLoading);
+
+  if (isLoading) {
+    els.exportProgress.removeAttribute("value");
+  } else if (!els.exportProgress.hasAttribute("value")) {
+    els.exportProgress.value = 0;
+  }
+}
+
+function waitForPaint() {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(resolve);
+    });
+  });
+}
+
 function syncOrientationControls() {
   const isLaptop = els.deviceSelect.value === "macbook";
   const radios = document.querySelectorAll("input[name='orientation']");
@@ -540,8 +651,124 @@ function waitForEvent(target, eventName) {
   });
 }
 
+function cleanupDownloadUrl() {
+  if (els.downloadLink.dataset.objectUrl) {
+    URL.revokeObjectURL(els.downloadLink.dataset.objectUrl);
+    delete els.downloadLink.dataset.objectUrl;
+  }
+}
+
+function canvasToBlob(canvas, type) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(blob);
+      } else {
+        reject(new Error("Could not create frame overlay."));
+      }
+    }, type);
+  });
+}
+
+function downloadBlob(blob, filename) {
+  cleanupDownloadUrl();
+  const objectUrl = URL.createObjectURL(blob);
+  els.downloadLink.href = objectUrl;
+  els.downloadLink.download = filename;
+  els.downloadLink.hidden = false;
+  els.downloadLink.dataset.objectUrl = objectUrl;
+  els.downloadLink.click();
+}
+
+function getResponseFilename(response, fallback) {
+  const disposition = response.headers.get("Content-Disposition") || "";
+  const match = disposition.match(/filename="([^"]+)"/i);
+  return match ? match[1] : fallback;
+}
+
+async function createFastExport(options) {
+  const scale = Number(els.resolutionScale.value);
+  const canvas = document.createElement("canvas");
+  canvas.width = options.preset.width * scale;
+  canvas.height = options.preset.height * scale;
+  const ctx = canvas.getContext("2d");
+  const screen = drawFrameOverlay(ctx, canvas, options);
+  const frameBlob = await canvasToBlob(canvas, "image/png");
+
+  const formData = new FormData();
+  formData.append("video", state.videoFile, state.videoFile.name || "recording.mp4");
+  formData.append("frame", frameBlob, "frame.png");
+
+  if (state.backgroundFile) {
+    formData.append("background", state.backgroundFile, state.backgroundFile.name || "background.png");
+  }
+
+  formData.append(
+    "options",
+    JSON.stringify({
+      backgroundColor: options.backgroundColor,
+      fitMode: options.fitMode,
+      height: canvas.height,
+      screen,
+      width: canvas.width,
+    }),
+  );
+
+  setStatus("Encoding with local FFmpeg");
+  await waitForPaint();
+
+  const response = await fetch("/api/export", {
+    body: formData,
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    const message = await response.text().catch(() => "");
+    throw new Error(message || "Fast export is unavailable.");
+  }
+
+  setStatus("Downloading export");
+  const blob = await response.blob();
+  const fileStamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  downloadBlob(blob, getResponseFilename(response, `mockup-${fileStamp}.mp4`));
+}
+
 async function createExport(event) {
   event.preventDefault();
+  if (!state.videoFile) {
+    setStatus("Choose a video first");
+    els.videoInput.focus();
+    return;
+  }
+
+  cleanupDownloadUrl();
+  els.exportButton.disabled = true;
+  els.downloadLink.hidden = true;
+  setProgressLoading(true);
+  setStatus("Preparing fast export");
+  await waitForPaint();
+
+  try {
+    await createFastExport(getOptions());
+    setProgressLoading(false);
+    els.exportProgress.value = 1;
+    setStatus("Fast export complete");
+  } catch (error) {
+    console.warn(error);
+    setProgressLoading(false);
+    setStatus("Fast export unavailable; using browser recorder");
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    els.exportButton.disabled = false;
+    await createRealtimeExport();
+    return;
+  } finally {
+    if (els.exportButton.disabled) {
+      els.exportButton.disabled = false;
+    }
+  }
+}
+
+async function createRealtimeExport() {
   if (!state.videoUrl) {
     setStatus("Choose a video first");
     els.videoInput.focus();
@@ -567,6 +794,7 @@ async function createExport(event) {
 
   els.exportButton.disabled = true;
   els.downloadLink.hidden = true;
+  setProgressLoading(false);
   if (els.downloadLink.dataset.objectUrl) {
     URL.revokeObjectURL(els.downloadLink.dataset.objectUrl);
     delete els.downloadLink.dataset.objectUrl;
@@ -671,6 +899,7 @@ els.videoInput.addEventListener("change", async () => {
   const [file] = els.videoInput.files;
   if (!file) return;
 
+  state.videoFile = file;
   if (state.videoUrl) URL.revokeObjectURL(state.videoUrl);
   state.videoUrl = URL.createObjectURL(file);
   els.sourceVideo.src = state.videoUrl;
@@ -692,6 +921,7 @@ els.videoInput.addEventListener("change", async () => {
 els.backgroundImage.addEventListener("change", () => {
   const [file] = els.backgroundImage.files;
   if (state.backgroundUrl) URL.revokeObjectURL(state.backgroundUrl);
+  state.backgroundFile = file || null;
   state.backgroundImage = null;
 
   if (!file) return;
@@ -725,10 +955,12 @@ els.deviceSelect.addEventListener("change", () => {
 
 els.exportPreset.addEventListener("change", syncCanvasSize);
 els.form.addEventListener("input", () => {
+  updateRangeLabels();
   setStatus("Ready");
 });
 els.form.addEventListener("submit", createExport);
 
 syncOrientationControls();
+updateRangeLabels();
 syncCanvasSize();
 startPreviewLoop();
